@@ -49,10 +49,8 @@ def parse_args():
 
 def open_cam_onboard(width, height):
     # On versions of L4T prior to 28.1, add 'flip-method=2' into gst_str
-    return cv2.VideoCapture("nvcamerasrc ! video/x-raw(memory:NVMM), width=(int)1280, height=(int)720,format=(string)I420, framerate=(fraction)24/1 ! nvvidconv flip-method=2 ! video/x-raw, format=(string)BGRx ! videoconvert ! video/x-raw, format=(string)BGR ! appsink");
 
-
-
+    return cv2.VideoCapture("nvarguscamerasrc ! video/x-raw(memory:NVMM), width=(int)1280, height=(int)720,format=(string)NV12, framerate=(fraction)24/1 ! nvvidconv flip-method=0 ! video/x-raw, format=(string)BGRx ! videoconvert ! video/x-raw, format=(string)BGR ! appsink")
 
 def open_window(width, height):
     cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
