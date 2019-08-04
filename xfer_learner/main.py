@@ -24,7 +24,7 @@ feature_params = dict( maxCorners = 50,
                        blockSize = 7 )
 
 # Parameters for lucas kanade optical flow
-lk_params = dict( winSize  = (15,15),
+lk_params = dict( winSize  = (10,10),
                   maxLevel = 2,
                   criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 1, 0.03))
 
@@ -54,7 +54,8 @@ detection_graph, sess = detector_utils.load_inference_graph()
 detected = 0
 color = np.random.randint(0,255,(100,3))
 num_detects = deque(maxlen=30)
-
+q = deque(maxlen=120)
+loop_num = 0
 #FRAME LOOP
 while True:
     timer = cv2.getTickCount()
@@ -71,7 +72,6 @@ while True:
     #     print("Error converting to RGB")
 	####################################################
     if not detected:
-        q = deque(maxlen=120)
         boxes, scores = detector_utils.detect_objects(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB),detection_graph,sess)
         q.append(scores[0])
         if np.mean(q) > score_thresh:
@@ -87,12 +87,12 @@ while True:
             mask = mask[:,:,0]
 
             #get centroid
-            ret, thresh = cv2.threshold(mask, 127, 255, 0)
-            M = cv2.moments(thresh)
-            if M["m00"]:
-                cX = int(M["m10"] / M["m00"])
-                cY = int(M["m01"] / M["m00"])
-                path_mask[cY - 10:cY + 10, cX - 10:cX + 10] = 255
+            # ret, thresh = cv2.threshold(mask, 127, 255, 0)
+            # M = cv2.moments(thresh)
+            # if M["m00"]:
+            #     cX = int(M["m10"] / M["m00"])
+            #     cY = int(M["m01"] / M["m00"])
+            #     path_mask[cY - 10:cY + 10, cX - 10:cX + 10] = 255
 
             track_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             p0 = cv2.goodFeaturesToTrack(track_frame, mask=mask, **feature_params)
@@ -100,7 +100,8 @@ while True:
 
     ####################################################
     else:
-        p0 = cv2.goodFeaturesToTrack(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), mask=mask, **feature_params)
+        if loop_num%3 is 0:
+            p0 = cv2.goodFeaturesToTrack(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), mask=mask, **feature_params)
         if p0 is not None:
             p1, st, err = cv2.calcOpticalFlowPyrLK(cv2.cvtColor(old_frame, cv2.COLOR_BGR2GRAY),cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), p0, None, **lk_params)
             good_new = p1[st == 1]
@@ -115,21 +116,28 @@ while True:
         #old_points = (point1,point2)
         if trans_mat[0] is not None:
             rows, cols = mask.shape
-            cX = int(cX+trans_mat[0][0,2])
-            cY = int(cY+trans_mat[0][1,2])
-            path_mask[cY - 10:cY + 10, cX - 10:cX + 10] = 255
-            #mask = cv2.warpAffine(mask, np.hstack((np.array([[1,0],[0,1]]),np.matrix(trans_mat[0][:,-1]).transpose())), (cols,rows))
-            #mask[mask>0]=255
+            #cX = int(cX+trans_mat[0][0,2])
+            #cY = int(cY+trans_mat[0][1,2])
+            mask = cv2.warpAffine(mask, np.hstack((np.array([[1,0],[0,1]]),np.matrix(trans_mat[0][:,-1]).transpose())), (cols,rows))
+            mask[mask>0]=255
+            ret, thresh = cv2.threshold(mask, 127, 255, 0)
+            M = cv2.moments(thresh)
+            if M["m00"]:
+                cX = int(M["m10"] / M["m00"])
+                cY = int(M["m01"] / M["m00"])
+                path_mask[cY - 10:cY + 10, cX - 10:cX + 10] = 255
+                cv2.circle(display_frame, (cX, cY), 5, (255, 255, 255), -1)
+
         # draw the tracks
         for i, (new, old) in enumerate(zip(good_new, good_old)):
             a, b = new.ravel()
             c, d = old.ravel()
             drawing_mask = cv2.line(drawing_mask, (a, b), (c, d), color[i].tolist(), 2)
             display_frame = cv2.circle(display_frame, (a, b), 5, color[i].tolist(), -1)
+
         #draw the centroid
         cv2.imshow("path",path_mask)
-
-        cv2.circle(display_frame, (cX, cY), 5, (255, 255, 255), -1)
+        loop_num += 1
         cv2.putText(display_frame, "centroid", (cX - 25, cY - 25), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
         img = cv2.add(display_frame, drawing_mask)
         p0 = good_new.reshape(-1, 1, 2)
