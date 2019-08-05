@@ -7,10 +7,32 @@ import time
 from utils.detector_utils import WebcamVideoStream
 import datetime
 import argparse
+from keras import models
 import cv2
 import sys
 import numpy as np
 from collections import deque
+def bound_binary_image(img,w,h):
+    i=0
+    x0_bound = None
+    x1_bound = None
+    y0_bound = None
+    y1_bound = None
+    while not(x0_bound and x1_bound and y0_bound and y1_bound):
+        x0 = i
+        x1 = w-i-1
+        y0 = i
+        y1 = h-i-1
+        if not x0_bound and np.any(img[:,int(x0)]):
+            x0_bound=x0
+        if not x1_bound and np.any(img[:,int(x1)]):
+            x1_bound=x1
+        if not y0_bound and np.any(img[int(y0),:]):
+            y0_bound=y0
+        if not y1_bound and np.any(img[int(y1),:]):
+            y1_bound=y1
+        i+=1
+    return (y0_bound,y1_bound,x0_bound,x1_bound)
 
 def convert_to_tracking_format(detect,ind):
     (left, right, top, bottom) = (detect[ind][1] * im_width, detect[ind][3] * im_width,
@@ -18,15 +40,6 @@ def convert_to_tracking_format(detect,ind):
     
     bounding_box = (int(left),int(top),int(right-left),int(bottom-top))
     return bounding_box
-feature_params = dict( maxCorners = 50,
-                       qualityLevel = 0.3,
-                       minDistance = 7,
-                       blockSize = 7 )
-
-# Parameters for lucas kanade optical flow
-lk_params = dict( winSize  = (10,10),
-                  maxLevel = 2,
-                  criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 1, 0.03))
 
 #ESTABLISH VIDEO STREAM
 frame_processed = 0
@@ -49,12 +62,18 @@ if not ok:
     print("Cannot read video file")
     sys.exit()
 
+#initialize before loop
 k = cv2.waitKey(1) & 0xff
 detection_graph, sess = detector_utils.load_inference_graph()
+digit_model = models.load_model("models/Digit_Baseline_10_epoch.h5")
 detected = 0
-color = np.random.randint(0,255,(100,3))
-num_detects = deque(maxlen=30)
-q = deque(maxlen=120)
+
+M = 20
+N = 30
+taps = 30
+num_detects = deque(maxlen=N) #M of N filter
+q = deque(maxlen=taps) #rolling average filter
+
 #FRAME LOOP
 while True:
     timer = cv2.getTickCount()
@@ -72,13 +91,10 @@ while True:
             num_detects.append(1)
         else:
             num_detects.append(0)
-        if np.sum(num_detects) > 20:
+        if np.sum(num_detects) > M: #duty cycle from M of N
             bbox = convert_to_tracking_format(boxes,0)#np.argmax(scores))
-            mask = np.zeros_like(frame)
-            #drawing_mask = np.zeros_like(frame)
             path_mask = np.zeros_like(frame)
-            mask[bbox[0]:bbox[0]+bbox[2], bbox[1]:bbox[1]+bbox[3],:] = 255
-            mask = mask[:,:,0]
+            path_mask = path_mask[:,:,0]
             tracker = cv2.TrackerMedianFlow_create()
             ok = tracker.init(frame, bbox)
             detected = 1
@@ -94,13 +110,7 @@ while True:
             boxes, scores = detector_utils.detect_objects(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB),detection_graph,sess)
             bbox = convert_to_tracking_format(boxes,0)
             ok = tracker.init(frame, bbox)
-        print(bbox)
-        mask = np.zeros_like(frame)
-        mask[int(bbox[0]):int(bbox[0] + bbox[2]), int(bbox[1]):int(bbox[1] + bbox[3]), :] = 255
-        mask[mask>0]=255
-        print(cX)
-        print(cY)
-        path_mask[cY - 10:cY + 10, cX - 10:cX + 10] = 255
+        path_mask[cY - 5:cY + 5, cX - 5:cX + 5] = 255
         cv2.circle(display_frame, (cX, cY), 5, (255, 255, 255), -1)
         cv2.imshow("path",path_mask)
         loop_num += 1
@@ -108,8 +118,19 @@ while True:
         loop_num+=1
         if loop_num >= 180:
             detected = 0
-            num_detects = deque(maxlen=30)
-            q = deque(maxlen=120)
+            num_detects = deque(maxlen=N) #M of N filter
+            q = deque(maxlen=taps) #rolling average filter
+            ret, path_mask = cv2.threshold(path_mask, 127, 255, cv2.THRESH_BINARY)
+            bounding = bound_binary_image(path_mask,im_width,im_height)
+            ROI = path_mask[int(bounding[0]):int(bounding[1]), int(bounding[2]):int(bounding[3])]
+            x_border = int((bounding[3]-bounding[2])/5)
+            y_border = int((bounding[3]-bounding[2])/5)
+            ROI_padded = cv2.copyMakeBorder(ROI,y_border,y_border,x_border,x_border,cv2.BORDER_CONSTANT, 0)
+            model_input = cv2.resize(ROI_padded, dsize=(28, 28))
+            prediction = digit_model.predict_classes(model_input.reshape(1,28,28,1))
+            model_input = cv2.resize(model_input, (int(20 * 28), int(20 * 28)), interpolation=cv2.INTER_AREA)
+            cv2.putText(model_input,"Prediction: "+str(prediction), (150, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (170, 170, 10), 2)
+            cv2.imshow("path",model_input) #int(bounding[3]):int(bounding[2])])
 
     if detected:
         # draw bounding boxes on frame
