@@ -65,7 +65,7 @@ if not ok:
 #initialize before loop
 k = cv2.waitKey(1) & 0xff
 detection_graph, sess = detector_utils.load_inference_graph()
-digit_model = models.load_model("models/Digit_Baseline_10_epoch.h5")
+digit_model = models.load_model("models/Fine_Tuned.h5")
 detected = 0
 
 M = 20
@@ -73,7 +73,7 @@ N = 30
 taps = 30
 num_detects = deque(maxlen=N) #M of N filter
 q = deque(maxlen=taps) #rolling average filter
-
+j = 0
 #FRAME LOOP
 while True:
     timer = cv2.getTickCount()
@@ -127,6 +127,8 @@ while True:
             y_border = int((bounding[3]-bounding[2])/5)
             ROI_padded = cv2.copyMakeBorder(ROI,y_border,y_border,x_border,x_border,cv2.BORDER_CONSTANT, 0)
             model_input = cv2.resize(ROI_padded, dsize=(28, 28))
+            cv2.imwrite("dataset/qiao/"+str(j)+".png",model_input)
+            j+=1
             prediction = digit_model.predict_classes(model_input.reshape(1,28,28,1))
             model_input = cv2.resize(model_input, (int(20 * 28), int(20 * 28)), interpolation=cv2.INTER_AREA)
             cv2.putText(model_input,"Prediction: "+str(prediction), (150, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (170, 170, 10), 2)
@@ -138,9 +140,6 @@ while True:
 
         point2 = (int(bbox[0]+bbox[2]),int(bbox[1]+bbox[3]))
         cv2.rectangle(display_frame, point1, point2, (77, 255, 9), 3, 1)
-    # Display tracker type on frame
-    #cv2.putText(frame, tracker_type + " Tracker", (100,20), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50,170,50),2);
- 	# Calculate Frames per second (FPS)
     cv2.putText(display_frame, str(np.mean(q)) + " confidence", (150,50), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50,170,50), 2)
     fps = cv2.getTickFrequency() / (cv2.getTickCount() - timer);
     detector_utils.draw_fps_on_image("FPS : " + str(int(fps)),
