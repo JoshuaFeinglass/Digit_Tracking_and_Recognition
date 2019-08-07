@@ -18,16 +18,16 @@ import threading
 import numpy as np
 import cv2
 
-CAFFE_ROOT = '/home/nvidia/caffe/'
-sys.path.insert(0, CAFFE_ROOT + 'python')
-import caffe
-from caffe.proto import caffe_pb2
+#CAFFE_ROOT = '/home/nvidia/caffe/'
+#sys.path.insert(0, CAFFE_ROOT + 'python')
+#import caffe
+#from caffe.proto import caffe_pb2
 
-BVLC_PATH = CAFFE_ROOT + 'models/bvlc_reference_caffenet/'
-DEFAULT_PROTOTXT = BVLC_PATH  + 'deploy.prototxt'
-DEFAULT_MODEL    = BVLC_PATH  + 'bvlc_reference_caffenet.caffemodel'
-DEFAULT_LABELS   = CAFFE_ROOT + 'data/ilsvrc12/synset_words.txt'
-DEFAULT_MEAN     = CAFFE_ROOT + 'data/ilsvrc12/imagenet_mean.binaryproto'
+#BVLC_PATH = CAFFE_ROOT + 'models/bvlc_reference_caffenet/'
+#DEFAULT_PROTOTXT = BVLC_PATH  + 'deploy.prototxt'
+#DEFAULT_MODEL    = BVLC_PATH  + 'bvlc_reference_caffenet.caffemodel'
+#DEFAULT_LABELS   = CAFFE_ROOT + 'data/ilsvrc12/synset_words.txt'
+#DEFAULT_MEAN     = CAFFE_ROOT + 'data/ilsvrc12/imagenet_mean.binaryproto'
 
 WINDOW_NAME = 'CameraCaffeDemo'
 
@@ -215,51 +215,41 @@ def read_cam_and_classify(net, transformer, labels, caffe_output, do_crop):
 
 
 def main():
-    global THREAD_RUNNING
-    args = parse_args()
-    print('Called with args:')
-    print(args)
-
-    if not os.path.isfile(args.caffe_prototxt):
-        sys.exit('File not found: {}'.format(args.caffe_prototxt))
-    if not os.path.isfile(args.caffe_model):
-        sys.exit('File not found: {}'.format(args.caffe_model))
-    if not os.path.isfile(args.caffe_labels):
-        sys.exit('File not found: {}'.format(args.caffe_labels))
-    if not os.path.isfile(args.caffe_mean):
-        sys.exit('File not found: {}'.format(args.caffe_mean))
+   # global THREAD_RUNNING
+   # args = parse_args()
+   # print('Called with args:')
+   # print(args)
+   # if not os.path.isfile(args.caffe_prototxt):
+   #     sys.exit('File not found: {}'.format(args.caffe_prototxt))
+   # if not os.path.isfile(args.caffe_model):
+   #     sys.exit('File not found: {}'.format(args.caffe_model))
+   ## if not os.path.isfile(args.caffe_labels):
+   #    sys.exit('File not found: {}'.format(args.caffe_labels))
+   # if not os.path.isfile(args.caffe_mean):
+   #     sys.exit('File not found: {}'.format(args.caffe_mean))
 
     # Initialize Caffe
-    if args.cpu_mode:
-        print('Running Caffe in CPU mode')
-        caffe.set_mode_cpu()
-    else:
-        print('Running Caffe in GPU mode')
-        caffe.set_device(0)
-        caffe.set_mode_gpu()
-    net = caffe.Net(args.caffe_prototxt, args.caffe_model, caffe.TEST)
-    mu = get_caffe_mean(args.caffe_mean)
-    print('Mean-subtracted values:', zip('BGR', mu))
-    transformer = caffe.io.Transformer({'data': net.blobs['data'].data.shape})
-    transformer.set_transpose('data', (2, 0, 1))
-    transformer.set_mean('data', mu)
-    # No need to to swap color channels since captured images are
+    #if args.cpu_mode:
+    #    print('Running Caffe in CPU mode')
+    #    caffe.set_mode_cpu()
+    #else:
+    #    print('Running Caffe in GPU mode')
+    #    caffe.set_device(0)
+    #    caffe.set_mode_gpu()
+    #net = caffe.Net(args.caffe_prototxt, args.caffe_model, caffe.TEST)
+    #mu = get_caffe_mean(args.caffe_mean)
+    #print('Mean-subtracted values:', zip('BGR', mu))
+    #transformer = caffe.io.Transformer({'data': net.blobs['data'].data.shape})
+    #transformer.set_transpose('data', (2, 0, 1))
+    #transformer.set_mean('data', mu)
+    ## No need to to swap color channels since captured images are
     # already in BGR format
-    labels = np.loadtxt(args.caffe_labels, str, delimiter='\t')
+    #labels = np.loadtxt(args.caffe_labels, str, delimiter='\t')
 
     # Open camera
-    if args.use_rtsp:
-        cap = open_cam_rtsp(args.rtsp_uri,
-                            args.image_width,
-                            args.image_height,
-                            args.rtsp_latency)
-    elif args.use_usb:
-        cap = open_cam_usb(args.video_dev,
-                           args.image_width,
-                           args.image_height)
-    else: # By default, use the Jetson onboard camera
-        cap = open_cam_onboard(args.image_width,
-                               args.image_height)
+    image_width = 1280
+    image_height = 720
+    cap = open_cam_onboard(image_width, image_height)
 
     if not cap.isOpened():
         sys.exit('Failed to open camera!')
@@ -270,8 +260,8 @@ def main():
     th.start()
 
     open_window(args.image_width, args.image_height)
-    read_cam_and_classify(net, transformer, labels,
-                          args.caffe_output, args.crop_center)
+    #read_cam_and_classify(net, transformer, labels,
+   #                       args.caffe_output, args.crop_center)
 
     # Terminate the sub-thread
     THREAD_RUNNING = False
