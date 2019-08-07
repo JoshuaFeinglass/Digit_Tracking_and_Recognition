@@ -1,50 +1,44 @@
 # Instructions
-Make sure there is plenty of light in the room (preferable a light behind the camera shining forward) and that there aren't too many edges in the background (including your face/head). Hold your hand in front of the camera for a few seconds until you see a new black and white frame pop up that indicates the design has entered tracking mode. Draw a digit on the black frame (the perpective is reversed in the program so you can draw the same way you would on a sheet of paper). After 150 frames, the image that was fed into the classifier will be shown to you with a prediction label on it.
+Make sure there is plenty of light in the room (preferable a light behind the camera shining forward) and that there aren't too many edges in the background (including your face/head). Run 'python demo.py' in the command line. Hold your hand in front of the camera for a few seconds until you see a new black and white frame pop up that indicates the design has entered tracking mode. Draw a digit on the black frame (the perpective is reversed in the program so you can draw the same way you would on a sheet of paper). After 150 frames (~5 seconds), the image that was fed into the classifier will be shown to you with a prediction label on it.
 
 # Motivations
-The MNIST dataset contains handwritten digits 0 through 9 and is frequently used to test proposed methods. Finger movements like writing are very precise as opposed to hand gestures which have a higher variance between examples and users. This project will show how knowledge from a easier problem, like recognizing handwritten digits, can be leveraged to tackle a more difficult one, like recognizing digits drawn through hand gestures.
-
-# Assumptions
-In model design, assumptions contrain a problem space to make it easier to solve, but might reduce the number of potential use cases or generalizability of the end product.
-
-I assume that the movement direction is not important for the final classification (only all the pixels that were visited over the action).
-
-I assume a digit hand gesture takes place over the course of 5 seconds in order to segment actions in time.
+The MNIST dataset contains handwritten digits 0 through 9 and is frequently used to test proposed methods. Finger movements like writing are very precise as opposed to hand gestures which have a higher variance between examples and users. This project will show how two seemlingly dissimilar problems can be framed in way such that knowledge from a easier problem, like recognizing handwritten digits, can be leveraged to tackle a more difficult one, like recognizing digits drawn through hand gestures.
 
 # Design Architecture
-A hand's presence will be detected in front of the onboard camera. To produce a hand gesture example, the hand will be tracked over a period time and a binary mask will be generated corresponding to all the locations visited by the hand's centroid. A Supervised model initially trained on handwritten digit binary masks will be used to classify the the hand gestures as digits, 0 through 9.
+A hand's presence will be detected in front of the onboard camera. To produce a hand gesture example, the hand will be tracked over a period time and a binary mask will be generated corresponding to all the locations visited by the hand's centroid. A Supervised model initially trained on handwritten digit binary masks and fine-tuned with generated examples is used to classify the the hand gestures as digits, 0 through 9.
+
+# Dataset
+A dataset generated for the purposes of fine tuning can be found under models/train and models/test.
 
 # Methods
-
 ## Detection
-I wanted something that would work well out of the box and tried many codebases on github to that end, most however, did not work. The victordibia DNN which started detecting immediately. There were quite a few false alarms even when trying to detect only one hand though, so I applied a moving average filter to the detection confidence measure and an M of N filter (detection duty cycle measure) after the confidence detection threshold which allowed me to ensure a clear hand was present before I started tracking. This also ensures that design doesn't immediately switch from detection mode to tracking mode since the M of N filter needs to charge-up.
+I wanted something that would work well out of the box and tried many codebases on github to that end, most however, did not work. The victordibia DNN which started detecting immediately. There were quite a few false alarms even when trying to detect only one hand though, so I applied a moving average filter of length 30 to the detection confidence measure and an M of N filter (detection duty cycle measure) after the confidence detection threshold which allowed me to ensure a clear hand was present before I started tracking. This also ensures that design doesn't immediately switch from detection mode to tracking mode since the M of N filter needs to charge-up for at least 20 frames.
 
 ## Tracking
 After trying to do some KLT tracking (estimation of an affine transformation from keypoint homography between frames) from scratch, I ended up using the opencv_contrib Median Flow tracker to track a bounding box of the hand and used the centroid of the bounding box to draw the digit. If the tracker fails on a frame, the design again attempts to detect by taking the highest confidence detection without a detection threshold to ensure a result will be provided. Points that the centroid visits and their neighbors are recorded over the course of the tracking period and are used to generate a final locations traversed mask.
 
-## Pre-processing Before Prediction
-
-
+## Pre-processing
+For the purposes of making the hand-written and gesture-written datasets as similar as possible, I thresholded both sets so that any nonzero pixels were 1. After drawing the digit, a developed algorithm in the function bound_binary_image shaves off any zero valued pixels around the digit. I then zero pad the border by a factor of the region of interest's height for the top and bottom and width for the left and right side. Lastly, I resize the image to 28x28x1 before feeding it into the model for prediction. This technique provides translation invariance but has the disadvantage of varying resolutions between the width and height (for example a 1 drawn as only a vertical line might appear to be a 7 since small variations in width would be captured).
 
 ## Supervised Model
-I use the out of the keras MNIST Convolutional Neural Network. It is theorized that Convolutional Layers, much like a Wavelet Transform, are able to learn primitive features of the dataset like edges vectors, while the Neural Network layers learn more complex features, like the outline of a face.
+The code for pre-training the model can be found in train_networth.py
+
+I use the out of the keras MNIST Convolutional Neural Network. Training the network with the provided training and test sets yield an accuracy of 98.5%. Rather than performing hyper-parameter tuning and model comparisons with k-fold cross validation, I opted to use the given model in the interest of time. I trained on the entire MNIST dataset for only 10 epoches with a batch size of 256 (larger batch sizes increase training speed but potentially reduce the accuracy estimated gradiate) since I fine-tuned the network later. 
 
 
 ## Generalization Techniques Utilized
-K-Fold Cross Validation:
-This technique splits the training data into K equally sized groups. K-1 of the groups are used for training and one is used for validation testing.
+The code for Data Augmentation+Fine Tuning can be found in mini_trainer.py.
 
-Transformation Invariance through Data Augmentation: Strictly supervised models only know what they're told from the training data. If you want the model to be able to recognize something regardless of transformations like translation and scaling, one option is to augment your dataset by performing these transformations on you training data. 
+Transformation Invariance through Data Augmentation: Strictly supervised models only know what they're told from the training data. If you want the model to be able to recognize something regardless of transformations like translation and scaling, one option is to augment your dataset by performing these transformations on you training data. I used the keras ImageDataGenerator class with rotation range 30 degrees, width shift range .1, height shift range .1, and shear range of .5 in order to further explore the input space for each digit without encroaching on another digit (vertically or horizontally flipping the digits would be an example of a poorly chosen transform in this situation).
 
-Fine Tuning:
+Fine Tuning: After pretraining a model on a similar problem, fine tuning allows for the model to slightly shift its bias in order to be better suited for the expected test data distribution. In order to reduce training time and ensure the fine tuned model does not diverge too far from the pre-trained model, the weights of the very first convolutional layer are not retrained. This is a common approach since it is generally theorized that the first few layers of a Convolutional Neural Network learn primitive and generally applicable features like edges (similar to a wavelet transform), while later layers learn more complex featurers like the outline of a face. After performing additional training for 100 epoches with an augmented dataset of generated training examples, the model improved from an accuracy of 64.7% on the generated test examples, to 88.2%.
 
-## References
-# Detection
+## References and Code Sources
+# Detection (demo.py)
 https://github.com/victordibia/handtracking
-# Tracking:
+# Tracking (demo.py)
 https://www.learnopencv.com/object-tracking-using-opencv-cpp-python/
-# Data Augmentation
+# Data Augmentation (mini_trainer.py)
 https://machinelearningmastery.com/how-to-configure-image-data-augmentation-when-training-deep-learning-neural-networks/
-# Validation
-https://machinelearningmastery.com/evaluate-performance-deep-learning-models-keras/
+https://www.learnopencv.com/keras-tutorial-fine-tuning-using-pre-trained-models/
 
