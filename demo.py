@@ -48,6 +48,7 @@ num_hands_detect = 1
 
 # Read video
 video = cv2.VideoCapture(-1)
+#video cv2.VideoCapture("nvcamerasrc ! video/x-raw(memory:NVMM), width=(int)1280, height=(int)720,format=(string)I420, framerate=(fraction)24/1 ! nvvidconv flip-method=2 ! video/x-raw, format=(string)BGRx ! videoconvert ! video/x-raw, format=(string)BGR ! appsink");
 video.set(cv2.CAP_PROP_FRAME_WIDTH, 300)
 video.set(cv2.CAP_PROP_FRAME_HEIGHT, 200)
 im_width, im_height = (video.get(3), video.get(4))
