@@ -1,5 +1,9 @@
 # Instructions
-Make sure there is plenty of light in the room (preferable a light behind the camera shining forward) and that there aren't too many edges in the background (including your face/head). Run 'python demo.py' in the command line. Hold your hand in front of the camera for a few seconds until you see a new black and white frame pop up that indicates the design has entered tracking mode. Draw a digit on the black frame (the perpective is reversed in the program so you can draw the same way you would on a sheet of paper). After 150 frames (~5 seconds), the image that was fed into the classifier will be shown to you with a prediction label on it.
+## General
+Make sure there is plenty of light in the room (preferable a light behind the camera shining forward) and that there aren't too many edges in the background (including your face/head). Run 'python demo.py' in the command line. Hold your hand in front of the camera for a few seconds until you see a new black and white frame pop up that indicates the design has entered tracking mode. Draw a digit on the black frame (the perpective is reversed in the program so you can draw the same way you would on a sheet of paper). After 180 frames (~5 seconds), the image that was fed into the classifier will be shown to you with a prediction label on it.
+
+## For TX 2 Demo (DL COE Project)
+Same as above, but run 'python3 tx_demo.py'. This version is tailored for the board (I initially developed the project on my computer to be able to work more quickly). This version allows the user to draw for only 90 frames since the frame rate is much slower on the board. Make sure your hand doesn't take up too much space in the frame by sitting back a ways. 
 
 # Motivations
 The MNIST dataset contains handwritten digits 0 through 9 and is frequently used to test proposed methods. Finger movements like writing are very precise as opposed to hand gestures which have a higher variance between examples and users. This project will show how two seemlingly dissimilar problems can be framed in way such that knowledge from a easier problem, like recognizing handwritten digits, can be leveraged to tackle a more difficult one, like recognizing digits drawn through hand gestures.
@@ -25,16 +29,28 @@ The code for pre-training the model can be found in train_networth.py
 
 I use the out of the keras MNIST Convolutional Neural Network. Training the network with the provided training and test sets yield an accuracy of 98.5%. Rather than performing hyper-parameter tuning and model comparisons with k-fold cross validation, I opted to use the given model in the interest of time. I trained on the entire MNIST dataset for only 10 epoches with a batch size of 256 (larger batch sizes increase training speed but potentially reduce the accuracy of estimated gradiate) since I fine-tuned the network later. 
 
+<<<<<<< HEAD
 
 ### Generalization Techniques Utilized
+=======
+## Generalization Techniques Utilized
+>>>>>>> 64e35cf3d37c05e3e1cb00b2cc668a513b8e7855
 The code for Data Augmentation+Fine Tuning can be found in mini_trainer.py.
 
 Transformation Invariance through Data Augmentation: Strictly supervised models only know what they're told from the training data. If you want the model to be able to recognize something regardless of transformations like translation and scaling, one option is to augment your dataset by performing these transformations on you training data. I used the keras ImageDataGenerator class with rotation range 30 degrees, width shift range .1, height shift range .1, and shear range of .5 in order to further explore the input space for each digit without encroaching on another digit (vertically or horizontally flipping the digits would be an example of a poorly chosen transform in this situation).
 
 Fine Tuning: After pretraining a model on a similar problem, fine tuning allows for the model to slightly shift its bias in order to be better suited for the expected test data distribution. In order to reduce training time and ensure the fine tuned model does not diverge too far from the pre-trained model, the weights of the very first convolutional layer are not retrained. This is a common approach since it is generally theorized that the first few layers of a Convolutional Neural Network learn primitive and generally applicable features like edges (similar to a wavelet transform), while later layers learn more complex featurers like the outline of a face. After performing additional training for 100 epoches with an augmented dataset of generated training examples, the model improved from an accuracy of 64.7% on the generated test examples, to 88.2%.
 
+<<<<<<< HEAD
 # References and Code Sources
 ### Detection (demo.py)
+=======
+## TX2 Version Differences
+The length of the filters before and after the NN detector are cut in half to compensate for the slower frame rate on the board. In tracking mode, I simply use the detector without the filters for tracking to avoid installing opencv-contrib (basically the same situation as assuming the median flow tracker always fails). There is more gitter due to the lower frame rate on the board and lack of previous frame information that would be provided from optical flow. To address this, the range of centroid neighbors included in the trace is increased by a factor of 4 (lowering the resolution, but ensuring the trace drawn by the hand remains contiguous).
+
+## References and Code Sources
+# Detection (demo.py)
+>>>>>>> 64e35cf3d37c05e3e1cb00b2cc668a513b8e7855
 https://github.com/victordibia/handtracking
 ### Tracking (demo.py)
 https://www.learnopencv.com/object-tracking-using-opencv-cpp-python/
